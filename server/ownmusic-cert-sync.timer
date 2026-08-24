@@ -1,0 +1,11 @@
+[Unit]
+Description=Track fnOS certificate renewals for Own Music
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=12h
+Persistent=true
+Unit=ownmusic-cert-sync.service
+
+[Install]
+WantedBy=timers.target

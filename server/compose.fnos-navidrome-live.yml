@@ -1,0 +1,132 @@
+services:
+  gateway:
+    image: caddy:2.11.4-alpine
+    container_name: navidrome-gateway
+    restart: unless-stopped
+    environment:
+      CERT_HOSTNAME: ${CERT_HOSTNAME:?set CERT_HOSTNAME in .env}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        apk add --no-cache jq >/dev/null
+
+        sync_certificate() {
+          config=/host/usr/trim/etc/network_gateway_cert.conf
+          test -r "$$config"
+          cert_path="$$(jq -er --arg host "$$CERT_HOSTNAME" '.[] | select(.host == $$host) | .cert' "$$config")"
+          key_path="$$(jq -er --arg host "$$CERT_HOSTNAME" '.[] | select(.host == $$host) | .key' "$$config")"
+          case "$$cert_path" in /usr/trim/*) ;; *) exit 21 ;; esac
+          case "$$key_path" in /usr/trim/*) ;; *) exit 22 ;; esac
+          install -m 0644 "/host$$cert_path" /certs/fullchain.crt.new
+          install -m 0600 "/host$$key_path" /certs/private.key.new
+          mv -f /certs/fullchain.crt.new /certs/fullchain.crt
+          mv -f /certs/private.key.new /certs/private.key
+        }
+
+        mkdir -p /certs /navidrome-data
+        if [ ! -s /navidrome-data/navidrome.toml ]; then
+          encryption_key="$$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
+          printf '%s\n' \
+            "PasswordEncryptionKey = '$$encryption_key'" \
+            "EnforceNonRootUser = true" \
+            "EnableInsightsCollector = false" \
+            "EnableLogRedacting = true" \
+            "TranscodingCacheSize = '2GB'" \
+            "Transcoding.MaxConcurrent = 2" \
+            > /navidrome-data/navidrome.toml
+        fi
+        chown -R 1000:1000 /navidrome-data
+
+        sync_certificate
+        cat > /tmp/Caddyfile <<'CADDYFILE'
+        {
+          servers :443 {
+            protocols h1 h2
+          }
+        }
+
+        :443 {
+          tls /certs/fullchain.crt /certs/private.key
+          encode zstd gzip
+          reverse_proxy navidrome:4533
+          header {
+            -Alt-Svc
+            Strict-Transport-Security "max-age=31536000"
+            X-Content-Type-Options "nosniff"
+            Referrer-Policy "no-referrer"
+          }
+        }
+        CADDYFILE
+
+        (
+          while sleep 43200; do
+            before="$$(sha256sum /certs/fullchain.crt /certs/private.key 2>/dev/null || true)"
+            sync_certificate
+            after="$$(sha256sum /certs/fullchain.crt /certs/private.key 2>/dev/null || true)"
+            if [ "$$before" != "$$after" ]; then
+              kill -USR1 1
+            fi
+          done
+        ) &
+
+        exec caddy run --config /tmp/Caddyfile --adapter caddyfile
+    ports:
+      - "18787:443"
+    volumes:
+      - "/usr/trim:/host/usr/trim:ro"
+      - navidrome_certs:/certs
+      - navidrome_data:/navidrome-data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "test -s /certs/fullchain.crt && test -s /certs/private.key && test -s /navidrome-data/navidrome.toml"
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 20s
+    networks:
+      - navidrome
+
+  navidrome:
+    image: deluan/navidrome:0.63.2
+    container_name: navidrome
+    restart: unless-stopped
+    user: "1000:1000"
+    depends_on:
+      gateway:
+        condition: service_healthy
+    environment:
+      ND_MUSICFOLDER: /music
+      ND_DATAFOLDER: /data
+      ND_LOGLEVEL: info
+      ND_ENABLEINSIGHTSCOLLECTOR: "false"
+      ND_ENFORCENONROOTUSER: "true"
+      ND_SCANNER_SCHEDULE: "@every 1h"
+      ND_ENABLEEXTERNALSERVICES: "true"
+      ND_AGENTS: "lastfm,deezer,listenbrainz"
+      ND_LASTFM_ENABLED: "true"
+      ND_LASTFM_APIKEY: "${LASTFM_API_KEY:?set LASTFM_API_KEY in the Compose project .env file}"
+      ND_LASTFM_SECRET: "${LASTFM_SHARED_SECRET:?set LASTFM_SHARED_SECRET in the Compose project .env file}"
+      ND_LASTFM_LANGUAGE: "zh,en"
+      ND_DEEZER_ENABLED: "true"
+      ND_LISTENBRAINZ_ENABLED: "true"
+      ND_LYRICSPRIORITY: ".lrc,.ttml,.srt,embedded,.txt"
+      ND_COVERARTPRIORITY: "cover.*,folder.*,front.*,embedded,external"
+      ND_ARTISTARTPRIORITY: "artist.*,album/artist.*,external"
+    volumes:
+      - "${MUSIC_DIRECTORY:?set MUSIC_DIRECTORY in .env}:/music:ro"
+      - navidrome_data:/data
+    expose:
+      - "4533"
+    networks:
+      - navidrome
+
+networks:
+  navidrome:
+    driver: bridge
+
+volumes:
+  navidrome_certs:
+  navidrome_data:

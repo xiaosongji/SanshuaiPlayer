@@ -1,0 +1,23 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$MUSIC_HOSTNAME} {
+	encode zstd gzip
+	reverse_proxy ownmusic:8080
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+	}
+}
+
+{$NAVIDROME_HOSTNAME} {
+	encode zstd gzip
+	reverse_proxy navidrome:4533
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+	}
+}

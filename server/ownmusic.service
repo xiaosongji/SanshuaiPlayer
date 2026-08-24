@@ -1,0 +1,34 @@
+[Unit]
+Description=Own Music NAS catalog and streaming service
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=ownmusic
+Group=ownmusic
+WorkingDirectory=/opt/ownmusic
+EnvironmentFile=/opt/ownmusic/.env
+Environment=PYTHONPATH=/opt/ownmusic
+Environment=OWNMUSIC_RUNTIME_ROOT=/opt/ownmusic/runtime
+ExecStartPre=/usr/bin/python3 /opt/ownmusic/sync_fnos_certificate.py
+ExecStart=/usr/bin/python3 -m ownmusic.app
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/usr/trim/etc/network_gateway_cert.conf
+ReadOnlyPaths=/usr/trim/var/trim_connect/ssls
+ReadOnlyPaths=/srv/music
+ReadWritePaths=/var/lib/ownmusic
+ReadWritePaths=/opt/ownmusic/runtime
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target

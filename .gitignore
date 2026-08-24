@@ -1,0 +1,29 @@
+DerivedData/
+DerivedData-*/
+build/
+.build/
+*.xcuserstate
+xcuserdata/
+.DS_Store
+.idea/
+*.ipa
+*.dSYM.zip
+*.dSYM
+*.xcresult
+*.mobileprovision
+*.p12
+*.pem
+*.key
+server/.env
+server/.env.*
+!server/.env.example
+server/data/
+__pycache__/
+*.py[cod]
+
+# Build archives are regenerable; keep them out of history.
+*.xcarchive/
+release/
+
+# Internal App Store production material is maintained outside the public repo.
+AppStoreAssets/

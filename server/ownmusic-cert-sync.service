@@ -1,0 +1,6 @@
+[Unit]
+Description=Reload Own Music HTTPS proxy with the current fnOS certificate
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/ownmusic/sync_fnos_certificate.py --restart-service ownmusic.service

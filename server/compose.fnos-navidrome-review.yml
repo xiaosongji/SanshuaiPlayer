@@ -1,0 +1,103 @@
+services:
+  gateway:
+    image: caddy:2.11.4-alpine
+    container_name: navidrome-review-gateway
+    restart: unless-stopped
+    environment:
+      CERT_HOSTNAME: ${CERT_HOSTNAME:?set CERT_HOSTNAME in .env}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        apk add --no-cache jq >/dev/null
+
+        config=/host/usr/trim/etc/network_gateway_cert.conf
+        cert_path="$$(jq -er --arg host "$$CERT_HOSTNAME" '.[] | select(.host == $$host) | .cert' "$$config")"
+        key_path="$$(jq -er --arg host "$$CERT_HOSTNAME" '.[] | select(.host == $$host) | .key' "$$config")"
+        case "$$cert_path" in /usr/trim/*) ;; *) exit 21 ;; esac
+        case "$$key_path" in /usr/trim/*) ;; *) exit 22 ;; esac
+        mkdir -p /certs /navidrome-data
+        install -m 0644 "/host$$cert_path" /certs/fullchain.crt
+        install -m 0600 "/host$$key_path" /certs/private.key
+
+        if [ ! -s /navidrome-data/navidrome.toml ]; then
+          encryption_key="$$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
+          printf '%s\n' \
+            "PasswordEncryptionKey = '$$encryption_key'" \
+            "EnforceNonRootUser = true" \
+            "EnableInsightsCollector = false" \
+            "EnableLogRedacting = true" \
+            "TranscodingCacheSize = '512MB'" \
+            "Transcoding.MaxConcurrent = 2" \
+            > /navidrome-data/navidrome.toml
+        fi
+        chown -R 1000:1000 /navidrome-data
+
+        cat > /tmp/Caddyfile <<'CADDYFILE'
+        {
+          servers :443 {
+            protocols h1 h2
+          }
+        }
+
+        :443 {
+          tls /certs/fullchain.crt /certs/private.key
+          encode zstd gzip
+          reverse_proxy navidrome-review:4533
+          header {
+            Strict-Transport-Security "max-age=31536000"
+            X-Content-Type-Options "nosniff"
+            Referrer-Policy "no-referrer"
+          }
+        }
+        CADDYFILE
+
+        exec caddy run --config /tmp/Caddyfile --adapter caddyfile
+    ports:
+      - "28787:443"
+    volumes:
+      - "/usr/trim:/host/usr/trim:ro"
+      - navidrome_review_certs:/certs
+      - navidrome_review_data:/navidrome-data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "test -s /certs/fullchain.crt && test -s /certs/private.key && test -s /navidrome-data/navidrome.toml"
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 20s
+    networks:
+      - navidrome-review
+
+  navidrome-review:
+    image: deluan/navidrome:0.63.2
+    container_name: navidrome-review
+    restart: unless-stopped
+    user: "1000:1000"
+    depends_on:
+      gateway:
+        condition: service_healthy
+    environment:
+      ND_MUSICFOLDER: /music
+      ND_DATAFOLDER: /data
+      ND_LOGLEVEL: info
+      ND_ENABLEINSIGHTSCOLLECTOR: "false"
+      ND_ENFORCENONROOTUSER: "true"
+      ND_SCANNER_SCHEDULE: "@every 6h"
+    volumes:
+      - "${MUSIC_DIRECTORY:?set MUSIC_DIRECTORY in .env}:/music:ro"
+      - navidrome_review_data:/data
+    expose:
+      - "4533"
+    networks:
+      - navidrome-review
+
+networks:
+  navidrome-review:
+    driver: bridge
+
+volumes:
+  navidrome_review_certs:
+  navidrome_review_data:

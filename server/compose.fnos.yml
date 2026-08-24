@@ -1,0 +1,68 @@
+services:
+  navidrome:
+    image: deluan/navidrome:0.63.2
+    container_name: navidrome
+    restart: unless-stopped
+    user: "1000:1000"
+    environment:
+      ND_MUSICFOLDER: /music
+      ND_DATAFOLDER: /data
+      ND_LOGLEVEL: info
+      ND_ENABLEINSIGHTSCOLLECTOR: "false"
+      ND_SCANSCHEDULE: "1h"
+    volumes:
+      - "${MUSIC_DIRECTORY:?set MUSIC_DIRECTORY in .env}:/music:ro"
+      - "${NAVIDROME_DATA_DIRECTORY:?set NAVIDROME_DATA_DIRECTORY in .env}:/data"
+    expose:
+      - "4533"
+    networks:
+      - ownmusic
+
+  ownmusic:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ownmusic
+    restart: unless-stopped
+    environment:
+      MUSIC_ROOT: /music
+      DATA_ROOT: /data
+      ARTIST_NAME: ${ARTIST_NAME}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
+      SIGNING_SECRET: ${SIGNING_SECRET}
+      API_USERNAME: ${API_USERNAME}
+      API_PASSWORD: ${API_PASSWORD}
+      SCAN_INTERVAL_SECONDS: ${SCAN_INTERVAL_SECONDS:-15}
+      STABLE_AGE_SECONDS: ${STABLE_AGE_SECONDS:-30}
+      PLAYBACK_URL_TTL_SECONDS: ${PLAYBACK_URL_TTL_SECONDS:-3600}
+      LISTEN_HOST: 0.0.0.0
+      LISTEN_PORT: 8080
+    user: "1000:1000"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    volumes:
+      - "${MUSIC_DIRECTORY:?set MUSIC_DIRECTORY in .env}:/music:ro"
+      - "${OWNMUSIC_DATA_DIRECTORY:?set OWNMUSIC_DATA_DIRECTORY in .env}:/data"
+    ports:
+      - "127.0.0.1:8787:8080"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/v1/health', timeout=2)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - ownmusic
+
+networks:
+  ownmusic:
+    driver: bridge

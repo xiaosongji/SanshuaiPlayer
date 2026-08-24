@@ -1,0 +1,76 @@
+name: MusicPlayer
+options:
+  developmentLanguage: zh-Hans
+  bundleIdPrefix: com.himhuu
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "26.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    CURRENT_PROJECT_VERSION: "56"
+    MARKETING_VERSION: "4.3.1"
+    SWIFT_EMIT_LOC_STRINGS: YES
+    LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+    CODE_SIGN_STYLE: Automatic
+targets:
+  MusicPlayer:
+    type: application
+    platform: iOS
+    sources:
+      - path: MusicPlayer
+    info:
+      path: MusicPlayer/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: "散帅播放器"
+        AppStoreID: "6784067140"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        ITSAppUsesNonExemptEncryption: false
+        NSLocalNetworkUsageDescription: "用于连接你本人配置的 NAS、Navidrome、OpenSubsonic 或 Jellyfin 音乐服务器。"
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+          UIImageName: BrandIcon
+          UIImageRespectsSafeAreaInsets: true
+        UIBackgroundModes:
+          - audio
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+          UISceneConfigurations:
+            CPTemplateApplicationSceneSessionRoleApplication:
+              - UISceneClassName: CPTemplateApplicationScene
+                UISceneConfigurationName: CarPlay
+                UISceneDelegateClassName: "$(PRODUCT_MODULE_NAME).CarPlaySceneDelegate"
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    settings:
+      base:
+        CODE_SIGN_ENTITLEMENTS: MusicPlayer/Resources/MusicPlayer.entitlements
+        PRODUCT_BUNDLE_IDENTIFIER: com.himhuu.music
+        PRODUCT_NAME: "$(TARGET_NAME)"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_MACCATALYST: NO
+    scheme:
+      testTargets:
+        - MusicPlayerTests
+  MusicPlayerTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: MusicPlayerTests
+    dependencies:
+      - target: MusicPlayer
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.himhuu.music.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1,2"

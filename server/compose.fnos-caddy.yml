@@ -1,0 +1,33 @@
+services:
+  caddy:
+    image: caddy:2.11.4-alpine
+    container_name: ownmusic-caddy
+    restart: unless-stopped
+    depends_on:
+      ownmusic:
+        condition: service_healthy
+      navidrome:
+        condition: service_started
+    environment:
+      MUSIC_HOSTNAME: ${MUSIC_HOSTNAME:?set MUSIC_HOSTNAME in .env}
+      NAVIDROME_HOSTNAME: ${NAVIDROME_HOSTNAME:?set NAVIDROME_HOSTNAME in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - ownmusic
+
+volumes:
+  caddy_data:
+  caddy_config:
